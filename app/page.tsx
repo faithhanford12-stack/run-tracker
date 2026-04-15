@@ -26,8 +26,6 @@ export default function Home() {
   const [runs, setRuns] = useState<Run[]>([])
   const [teams, setTeams] = useState<string[]>([])
   const [selectedTeam, setSelectedTeam] = useState("")
-  const [showSuccess, setShowSuccess] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const runsRef = collection(db, "runs")
 
@@ -44,7 +42,6 @@ export default function Home() {
     return () => unsubscribe()
   }, [])
 
-  // ➕ CREATE TEAM
   const handleCreateTeam = () => {
     if (!team.trim()) return
     if (!teams.includes(team)) setTeams([...teams, team])
@@ -53,11 +50,8 @@ export default function Home() {
     setTeam("")
   }
 
-  // 🏃 SUBMIT RUN (WITH ANIMATION)
   const handleSubmit = async () => {
     if (!selectedTeam || !name || !miles) return
-
-    setIsSubmitting(true)
 
     await addDoc(runsRef, {
       team: selectedTeam,
@@ -67,76 +61,69 @@ export default function Home() {
 
     setName("")
     setMiles("")
-
-    setIsSubmitting(false)
-
-    // success animation
-    setShowSuccess(true)
-    setTimeout(() => setShowSuccess(false), 1500)
   }
 
-  // 🧮 TOTALS
   const teamTotals: Record<string, number> = {}
 
   runs.forEach((r) => {
     teamTotals[r.team] = (teamTotals[r.team] || 0) + r.miles
   })
 
-  // 📊 CHART
   const chartData = Object.entries(teamTotals)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 10)
     .map(([team, miles]) => ({ team, miles }))
 
-  // 👤 TEAM DETAIL
   const selectedTeamRuns = runs
     .filter((r) => r.team === selectedTeam)
     .sort((a, b) => b.miles - a.miles)
 
+  // 🔵 INPUT STYLE (centralized fix)
+  const inputStyle =
+    "w-full p-3 border rounded-lg text-sky-950 font-medium placeholder:text-sky-950"
+
   return (
     <div className="min-h-screen bg-gray-50 flex justify-center">
-
       <div className="w-full max-w-md bg-white min-h-screen shadow-xl">
 
         {/* HEADER */}
         <div className="sticky top-0 bg-white border-b p-4">
-          <h1 className="text-xl font-bold text-gray-900">
-            Team Fitness Tracker
+          <h1 className="text-xl font-bold text-sky-950">
+            🏃 Run Tracker
           </h1>
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-sky-950">
             Live team fitness dashboard
           </p>
         </div>
 
-        {/* SUCCESS TOAST */}
-        {showSuccess && (
-          <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-sky-500 text-white px-4 py-2 rounded-full shadow-lg animate-bounce z-50 text-sm">
-            Run Logged ✔
-          </div>
-        )}
-
         <div className="p-4 space-y-4 pb-10">
 
           {/* TEAM */}
-          <div className="border-2 border-sky-200 bg-sky-50 rounded-xl p-5 shadow-md">
-            <h2 className="text-sm font-semibold text-gray-900 mb-2">
+          <div className={`border-2 rounded-xl p-5 shadow-md transition-all duration-200 ${
+            selectedTeam ? "border-sky-400 bg-sky-50" : "border-sky-200 bg-sky-50"
+          }`}>
+            <h2 className="text-sm font-semibold text-sky-950 mb-2">
               Team Selection
             </h2>
 
             <select
-              className="w-full p-3 border rounded-lg"
+              className={`${inputStyle}`}
               value={selectedTeam}
               onChange={(e) => setSelectedTeam(e.target.value)}
             >
-              <option value="">Select Team</option>
+              <option value="" className="text-sky-950">
+                Select Team
+              </option>
               {teams.map((t) => (
-                <option key={t}>{t}</option>
+                <option key={t} className="text-sky-950">
+                  {t}
+                </option>
               ))}
             </select>
 
             <div className="flex gap-2 mt-2">
               <input
-                className="flex-1 p-2 border rounded-lg text-sm"
+                className={`${inputStyle}`}
                 placeholder="New team"
                 value={team}
                 onChange={(e) => setTeam(e.target.value)}
@@ -152,44 +139,39 @@ export default function Home() {
 
           {/* LOG RUN */}
           <div className="border-2 border-sky-200 bg-sky-50 rounded-xl p-5 shadow-md">
-            <h2 className="text-sm font-semibold text-gray-900 mb-3">
+            <h2 className="text-sm font-semibold text-sky-950 mb-3">
               Log Your Run
             </h2>
 
             <div className="flex flex-col gap-2">
 
               <input
-                className="p-3 border rounded-lg text-sm"
+                className={`${inputStyle}`}
                 placeholder="Name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
 
               <input
-                className="p-3 border rounded-lg text-sm"
+                className={`${inputStyle}`}
                 type="number"
                 placeholder="Miles"
                 value={miles}
                 onChange={(e) => setMiles(e.target.value)}
               />
 
-              {/* 🔥 ANIMATED BUTTON */}
               <button
                 onClick={handleSubmit}
-                disabled={isSubmitting}
-                className={`bg-sky-500 text-white py-3 rounded-lg font-bold shadow-md transition-all duration-200 active:scale-95 ${
-                  isSubmitting ? "opacity-50 scale-95" : ""
-                }`}
+                className="bg-sky-500 text-white py-3 rounded-lg font-bold shadow-md active:scale-95"
               >
-                {isSubmitting ? "Submitting..." : "Submit Run"}
+                Submit Run
               </button>
-
             </div>
           </div>
 
           {/* LEADERBOARD */}
           <div className="border rounded-xl p-4 shadow-sm">
-            <h2 className="text-sm font-semibold mb-3 text-gray-900">
+            <h2 className="text-sm font-semibold mb-3 text-sky-950">
               Leaderboard
             </h2>
 
@@ -202,11 +184,16 @@ export default function Home() {
                     onClick={() =>
                       setSelectedTeam(selectedTeam === team ? "" : team)
                     }
-                    className="flex justify-between text-sm p-2 rounded-lg hover:bg-gray-100 cursor-pointer"
+                    className={`flex justify-between text-sm p-2 rounded-lg cursor-pointer transition-all duration-200 ${
+                      selectedTeam === team
+                        ? "bg-sky-100 border border-sky-400 shadow-sm"
+                        : "hover:bg-gray-100"
+                    }`}
                   >
-                    <span className="text-gray-800">
+                    <span className="text-sky-950">
                       #{i + 1} {team}
                     </span>
+
                     <span className="font-bold text-sky-600">
                       {miles} mi
                     </span>
@@ -217,7 +204,7 @@ export default function Home() {
 
           {/* CHART */}
           <div className="border rounded-xl p-4 shadow-sm">
-            <h2 className="text-sm font-semibold mb-3 text-gray-900">
+            <h2 className="text-sm font-semibold mb-3 text-sky-950">
               Top Teams
             </h2>
 
@@ -236,13 +223,13 @@ export default function Home() {
           {/* TEAM DETAILS */}
           {selectedTeam && (
             <div className="border rounded-xl p-4 shadow-sm">
-              <h2 className="text-sm font-semibold mb-2 text-gray-900">
+              <h2 className="text-sm font-semibold mb-2 text-sky-950">
                 {selectedTeam} Contributions
               </h2>
 
               {selectedTeamRuns.map((r, i) => (
                 <div key={i} className="flex justify-between text-sm py-1">
-                  <span className="text-gray-800">{r.name}</span>
+                  <span className="text-sky-950">{r.name}</span>
                   <span className="font-bold text-sky-600">
                     {r.miles} mi
                   </span>

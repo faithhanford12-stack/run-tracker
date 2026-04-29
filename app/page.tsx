@@ -2,244 +2,308 @@
 
 import { useEffect, useState } from "react"
 import { db } from "../lib/firebase"
-import { collection, addDoc, onSnapshot } from "firebase/firestore"
-
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts"
+  collection,
+  addDoc,
+  onSnapshot,
+  serverTimestamp,
+  deleteDoc,
+  doc,
+} from "firebase/firestore"
 
-type Run = {
+import { Inter } from "next/font/google"
+
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+})
+
+type Entry = {
+  id?: string
   team: string
   name: string
-  miles: number
+  minutes?: number
+  createdAt?: any
+}
+
+type Team = {
+  id?: string
+  name: string
+}
+
+// 🕒 time ago formatter
+const timeAgo = (timestamp: any) => {
+  if (!timestamp?.toDate) return "Just now"
+
+  const now = new Date()
+  const date = timestamp.toDate()
+  const diff = Math.floor((now.getTime() - date.getTime()) / 1000)
+
+  if (diff < 60) return "Just now"
+  if (diff < 3600) return `${Math.floor(diff / 60)} min ago`
+  if (diff < 86400) return `${Math.floor(diff / 3600)} hr ago`
+  if (diff < 604800) return `${Math.floor(diff / 86400)} day ago`
+
+  return date.toLocaleDateString()
 }
 
 export default function Home() {
   const [team, setTeam] = useState("")
   const [name, setName] = useState("")
-  const [miles, setMiles] = useState("")
-  const [runs, setRuns] = useState<Run[]>([])
-  const [teams, setTeams] = useState<string[]>([])
+  const [minutes, setMinutes] = useState("")
+  const [entries, setEntries] = useState<Entry[]>([])
+  const [teams, setTeams] = useState<Team[]>([])
   const [selectedTeam, setSelectedTeam] = useState("")
+  const [view, setView] = useState<"dashboard" | "teams">("dashboard")
+  const [lastEntryId, setLastEntryId] = useState<string | null>(null)
 
   const runsRef = collection(db, "runs")
+  const teamsRef = collection(db, "teams")
 
-  // 🔥 REAL TIME
+  // 🔥 RUNS
   useEffect(() => {
-    const unsubscribe = onSnapshot(runsRef, (snapshot) => {
-      const data = snapshot.docs.map((doc) => doc.data() as Run)
-      setRuns(data)
-
-      const uniqueTeams = Array.from(new Set(data.map((r) => r.team)))
-      setTeams(uniqueTeams)
+    const unsub = onSnapshot(runsRef, (snap) => {
+      const data = snap.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      })) as Entry[]
+      setEntries(data)
     })
-
-    return () => unsubscribe()
+    return () => unsub()
   }, [])
 
-  const handleCreateTeam = () => {
-    if (!team.trim()) return
-    if (!teams.includes(team)) setTeams([...teams, team])
+  // 🔥 TEAMS
+  useEffect(() => {
+    const unsub = onSnapshot(teamsRef, (snap) => {
+      const data = snap.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      })) as Team[]
+      setTeams(data)
+    })
+    return () => unsub()
+  }, [])
 
-    setSelectedTeam(team)
+  // ✅ SUBMIT
+  const handleSubmit = async () => {
+    const num = Number(minutes)
+
+    if (!selectedTeam || !name || !minutes) {
+      alert("Fill out all fields")
+      return
+    }
+
+    const docRef = await addDoc(runsRef, {
+      team: selectedTeam,
+      name,
+      minutes: num,
+      createdAt: serverTimestamp(),
+    })
+
+    setLastEntryId(docRef.id)
+    setMinutes("")
+  }
+
+  // ✅ UNDO
+  const handleUndo = async () => {
+    if (!lastEntryId) return
+    await deleteDoc(doc(db, "runs", lastEntryId))
+    setLastEntryId(null)
+  }
+
+  // ✅ CREATE TEAM
+  const handleCreateTeam = async () => {
+    if (!team.trim()) return
+
+    const newTeamName = team.trim()
+
+    await addDoc(teamsRef, {
+      name: newTeamName,
+    })
+
+    setSelectedTeam(newTeamName)
     setTeam("")
   }
 
-  const handleSubmit = async () => {
-    if (!selectedTeam || !name || !miles) return
+  // totals
+  const allTimeTotals: Record<string, number> = {}
 
-    await addDoc(runsRef, {
-      team: selectedTeam,
-      name,
-      miles: Number(miles),
-    })
-
-    setName("")
-    setMiles("")
-  }
-
-  const teamTotals: Record<string, number> = {}
-
-  runs.forEach((r) => {
-    teamTotals[r.team] = (teamTotals[r.team] || 0) + r.miles
+  entries.forEach((r) => {
+    const v = r.minutes ?? 0
+    allTimeTotals[r.team] = (allTimeTotals[r.team] || 0) + v
   })
 
-  const chartData = Object.entries(teamTotals)
-    .sort((a, b) => b[1] - a[1])
+  // 🔥 FIXED activity sorting (true timestamp)
+  const activity = [...entries]
+    .sort((a, b) => {
+      const dateA = a.createdAt?.toDate
+        ? a.createdAt.toDate().getTime()
+        : 0
+      const dateB = b.createdAt?.toDate
+        ? b.createdAt.toDate().getTime()
+        : 0
+      return dateB - dateA
+    })
     .slice(0, 10)
-    .map(([team, miles]) => ({ team, miles }))
-
-  const selectedTeamRuns = runs
-    .filter((r) => r.team === selectedTeam)
-    .sort((a, b) => b.miles - a.miles)
-
-  // 🔵 INPUT STYLE (centralized fix)
-  const inputStyle =
-    "w-full p-3 border rounded-lg text-sky-950 font-medium placeholder:text-sky-950"
 
   return (
-    <div className="min-h-screen bg-gray-50 flex justify-center">
-      <div className="w-full max-w-md bg-white min-h-screen shadow-xl">
+    <div className={`${inter.className} flex min-h-screen bg-[#0f0f0f] text-[#e5e5e5]`}>
 
-        {/* HEADER */}
-        <div className="sticky top-0 bg-white border-b p-4">
-          <h1 className="text-xl font-bold text-sky-950">
-            🏃 Run Tracker
-          </h1>
-          <p className="text-sm text-sky-950">
-            Live team fitness dashboard
-          </p>
+      {/* SIDEBAR */}
+      <div className="w-64 bg-[#1a1a1a] border-r border-[#2a2a2a] p-4 flex flex-col">
+        <h1 className="text-xl font-semibold mb-4">Fitness</h1>
+
+        <div className="space-y-2 text-sm mb-6">
+          <div
+            onClick={() => setView("dashboard")}
+            className={`px-3 py-2 rounded cursor-pointer ${
+              view === "dashboard" ? "bg-[#2f6f73]" : "hover:bg-[#2a2a2a]"
+            }`}
+          >
+            Dashboard
+          </div>
+
+          <div
+            onClick={() => setView("teams")}
+            className={`px-3 py-2 rounded cursor-pointer ${
+              view === "teams" ? "bg-[#2f6f73]" : "hover:bg-[#2a2a2a]"
+            }`}
+          >
+            Teams
+          </div>
         </div>
 
-        <div className="p-4 space-y-4 pb-10">
+        <div className="flex-1" />
+        <div className="text-xs text-[#666]">v1.0</div>
+      </div>
 
-          {/* TEAM */}
-          <div className={`border-2 rounded-xl p-5 shadow-md transition-all duration-200 ${
-            selectedTeam ? "border-sky-400 bg-sky-50" : "border-sky-200 bg-sky-50"
-          }`}>
-            <h2 className="text-sm font-semibold text-sky-950 mb-2">
-              Team Selection
-            </h2>
+      {/* MAIN */}
+      <div className="flex-1 p-6">
 
-            <select
-              className={`${inputStyle}`}
-              value={selectedTeam}
-              onChange={(e) => setSelectedTeam(e.target.value)}
-            >
-              <option value="" className="text-sky-950">
-                Select Team
-              </option>
-              {teams.map((t) => (
-                <option key={t} className="text-sky-950">
-                  {t}
-                </option>
-              ))}
-            </select>
+        {view === "dashboard" && (
+          <>
+            <h2 className="text-2xl font-semibold mb-4">Dashboard</h2>
 
-            <div className="flex gap-2 mt-2">
+            {/* TEAM SELECT */}
+            <div className="bg-[#1f1f1f] rounded-xl p-4 mb-4">
+              <select
+                className="w-full p-3 rounded bg-[#111] border border-[#333]"
+                value={selectedTeam}
+                onChange={(e) => setSelectedTeam(e.target.value)}
+              >
+                <option value="">Select Team</option>
+                {teams.map((t) => (
+                  <option key={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* LOG */}
+            <div className="bg-[#1f1f1f] rounded-xl p-4 mb-4">
+              <div className="grid grid-cols-3 gap-2">
+                <input
+                  className="p-3 rounded bg-[#111] border border-[#333]"
+                  placeholder="Name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+
+                <input
+                  className="p-3 rounded bg-[#111] border border-[#333]"
+                  placeholder="Minutes"
+                  value={minutes}
+                  onChange={(e) => setMinutes(e.target.value)}
+                />
+
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  className="bg-[#c46a2d] rounded font-semibold"
+                >
+                  Log
+                </button>
+              </div>
+
+              {lastEntryId && (
+                <div className="mt-3 text-right">
+                  <button
+                    onClick={handleUndo}
+                    className="text-sm text-[#c46a2d] hover:underline"
+                  >
+                    Undo last entry
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {view === "teams" && (
+          <>
+            <h2 className="text-2xl font-semibold mb-4">Teams</h2>
+
+            <div className="bg-[#1f1f1f] rounded-xl p-4 mb-4 flex gap-2">
               <input
-                className={`${inputStyle}`}
-                placeholder="New team"
+                className="flex-1 p-3 rounded bg-[#111] border border-[#333]"
+                placeholder="New team name"
                 value={team}
                 onChange={(e) => setTeam(e.target.value)}
               />
               <button
                 onClick={handleCreateTeam}
-                className="bg-sky-500 text-white px-3 rounded-lg text-sm shadow-sm"
+                className="bg-[#c46a2d] px-4 rounded"
               >
-                +
+                Add
               </button>
             </div>
-          </div>
 
-          {/* LOG RUN */}
-          <div className="border-2 border-sky-200 bg-sky-50 rounded-xl p-5 shadow-md">
-            <h2 className="text-sm font-semibold text-sky-950 mb-3">
-              Log Your Run
-            </h2>
-
-            <div className="flex flex-col gap-2">
-
-              <input
-                className={`${inputStyle}`}
-                placeholder="Name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-
-              <input
-                className={`${inputStyle}`}
-                type="number"
-                placeholder="Miles"
-                value={miles}
-                onChange={(e) => setMiles(e.target.value)}
-              />
-
-              <button
-                onClick={handleSubmit}
-                className="bg-sky-500 text-white py-3 rounded-lg font-bold shadow-md active:scale-95"
-              >
-                Submit Run
-              </button>
-            </div>
-          </div>
-
-          {/* LEADERBOARD */}
-          <div className="border rounded-xl p-4 shadow-sm">
-            <h2 className="text-sm font-semibold mb-3 text-sky-950">
-              Leaderboard
-            </h2>
-
-            <ul className="space-y-2">
-              {Object.entries(teamTotals)
-                .sort((a, b) => b[1] - a[1])
-                .map(([team, miles], i) => (
-                  <li
-                    key={team}
-                    onClick={() =>
-                      setSelectedTeam(selectedTeam === team ? "" : team)
-                    }
-                    className={`flex justify-between text-sm p-2 rounded-lg cursor-pointer transition-all duration-200 ${
-                      selectedTeam === team
-                        ? "bg-sky-100 border border-sky-400 shadow-sm"
-                        : "hover:bg-gray-100"
-                    }`}
+            <div className="bg-[#1f1f1f] rounded-xl overflow-hidden">
+              {teams
+                .map((t) => ({
+                  name: t.name,
+                  total: allTimeTotals[t.name] || 0,
+                }))
+                .sort((a, b) => b.total - a.total)
+                .map(({ name: teamName, total }, i) => (
+                  <div
+                    key={teamName}
+                    className="flex justify-between px-4 py-3 border-b border-[#2a2a2a]"
                   >
-                    <span className="text-sky-950">
-                      #{i + 1} {team}
+                    <span>
+                      {i === 0 && "🏆 "}#{i + 1} {teamName}
                     </span>
-
-                    <span className="font-bold text-sky-600">
-                      {miles} mi
+                    <span className="text-[#c46a2d] font-bold">
+                      {total} min
                     </span>
-                  </li>
+                  </div>
                 ))}
-            </ul>
-          </div>
-
-          {/* CHART */}
-          <div className="border rounded-xl p-4 shadow-sm">
-            <h2 className="text-sm font-semibold mb-3 text-sky-950">
-              Top Teams
-            </h2>
-
-            <div className="h-40">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
-                  <XAxis dataKey="team" hide />
-                  <YAxis hide />
-                  <Tooltip />
-                  <Bar dataKey="miles" fill="#0ea5e9" />
-                </BarChart>
-              </ResponsiveContainer>
             </div>
-          </div>
-
-          {/* TEAM DETAILS */}
-          {selectedTeam && (
-            <div className="border rounded-xl p-4 shadow-sm">
-              <h2 className="text-sm font-semibold mb-2 text-sky-950">
-                {selectedTeam} Contributions
-              </h2>
-
-              {selectedTeamRuns.map((r, i) => (
-                <div key={i} className="flex justify-between text-sm py-1">
-                  <span className="text-sky-950">{r.name}</span>
-                  <span className="font-bold text-sky-600">
-                    {r.miles} mi
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-
-        </div>
+          </>
+        )}
       </div>
+
+      {/* RIGHT PANEL */}
+      <div className="w-72 bg-[#1a1a1a] border-l border-[#2a2a2a] p-4">
+        <h3 className="text-sm font-semibold mb-4">Recent Activity</h3>
+
+        {activity.map((a, i) => {
+          const value = a.minutes ?? 0
+          return (
+            <div key={i} className="mb-3 text-sm">
+              <div className="font-medium">{a.name}</div>
+
+              <div className="text-[#888] text-xs">
+                {a.team} • {timeAgo(a.createdAt)}
+              </div>
+
+              <div className="text-[#c46a2d] font-semibold">
+                {value} min
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
     </div>
   )
 }

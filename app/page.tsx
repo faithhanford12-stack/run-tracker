@@ -139,7 +139,7 @@ export default function Home() {
 
       {/* MOBILE HEADER */}
       <div className="md:hidden px-4 py-3 border-b border-[#2a2a2a] bg-[#1a1a1a]">
-        <h1 className="text-base font-semibold">Fitness</h1>
+        <h1 className="text-base font-semibold">Fitness Tracker</h1>
       </div>
 
       {/* MOBILE NAV */}
@@ -150,7 +150,7 @@ export default function Home() {
             view === "dashboard" ? "bg-[#2f6f73]" : "bg-[#2a2a2a]"
           }`}
         >
-          Dashboard
+          Track
         </button>
 
         <button
@@ -174,7 +174,7 @@ export default function Home() {
               view === "dashboard" ? "bg-[#2f6f73]" : "hover:bg-[#2a2a2a]"
             }`}
           >
-            Dashboard
+            Track
           </div>
 
           <div
@@ -196,7 +196,7 @@ export default function Home() {
         {view === "dashboard" && (
           <>
             <h2 className="text-lg md:text-2xl font-semibold mb-3 md:mb-4">
-              Dashboard
+              Track
             </h2>
 
             <div className="bg-[#1f1f1f] rounded-xl p-3 md:p-4 mb-3 md:mb-4">

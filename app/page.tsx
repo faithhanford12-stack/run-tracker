@@ -31,7 +31,7 @@ type Team = {
   name: string
 }
 
-// 🕒 time ago formatter
+// time ago
 const timeAgo = (timestamp: any) => {
   if (!timestamp?.toDate) return "Just now"
 
@@ -60,7 +60,7 @@ export default function Home() {
   const runsRef = collection(db, "runs")
   const teamsRef = collection(db, "teams")
 
-  // 🔥 RUNS
+  // RUNS
   useEffect(() => {
     const unsub = onSnapshot(runsRef, (snap) => {
       const data = snap.docs.map((d) => ({
@@ -72,7 +72,7 @@ export default function Home() {
     return () => unsub()
   }, [])
 
-  // 🔥 TEAMS
+  // TEAMS
   useEffect(() => {
     const unsub = onSnapshot(teamsRef, (snap) => {
       const data = snap.docs.map((d) => ({
@@ -84,7 +84,7 @@ export default function Home() {
     return () => unsub()
   }, [])
 
-  // ✅ SUBMIT
+  // SUBMIT
   const handleSubmit = async () => {
     const num = Number(minutes)
 
@@ -104,14 +104,14 @@ export default function Home() {
     setMinutes("")
   }
 
-  // ✅ UNDO
+  // UNDO
   const handleUndo = async () => {
     if (!lastEntryId) return
     await deleteDoc(doc(db, "runs", lastEntryId))
     setLastEntryId(null)
   }
 
-  // ✅ CREATE TEAM
+  // CREATE TEAM
   const handleCreateTeam = async () => {
     if (!team.trim()) return
 
@@ -133,24 +133,46 @@ export default function Home() {
     allTimeTotals[r.team] = (allTimeTotals[r.team] || 0) + v
   })
 
-  // 🔥 FIXED activity sorting (true timestamp)
+  // activity sorted by time
   const activity = [...entries]
     .sort((a, b) => {
-      const dateA = a.createdAt?.toDate
-        ? a.createdAt.toDate().getTime()
-        : 0
-      const dateB = b.createdAt?.toDate
-        ? b.createdAt.toDate().getTime()
-        : 0
+      const dateA = a.createdAt?.toDate?.().getTime() || 0
+      const dateB = b.createdAt?.toDate?.().getTime() || 0
       return dateB - dateA
     })
     .slice(0, 10)
 
   return (
-    <div className={`${inter.className} flex min-h-screen bg-[#0f0f0f] text-[#e5e5e5]`}>
+    <div className={`${inter.className} md:flex min-h-screen bg-[#0f0f0f] text-[#e5e5e5]`}>
 
-      {/* SIDEBAR */}
-      <div className="w-64 bg-[#1a1a1a] border-r border-[#2a2a2a] p-4 flex flex-col">
+      {/* MOBILE HEADER */}
+      <div className="md:hidden p-4 border-b border-[#2a2a2a] bg-[#1a1a1a]">
+        <h1 className="text-lg font-semibold">Fitness</h1>
+      </div>
+
+      {/* MOBILE NAV */}
+      <div className="md:hidden flex gap-2 p-4">
+        <button
+          onClick={() => setView("dashboard")}
+          className={`flex-1 py-2 rounded ${
+            view === "dashboard" ? "bg-[#2f6f73]" : "bg-[#2a2a2a]"
+          }`}
+        >
+          Dashboard
+        </button>
+
+        <button
+          onClick={() => setView("teams")}
+          className={`flex-1 py-2 rounded ${
+            view === "teams" ? "bg-[#2f6f73]" : "bg-[#2a2a2a]"
+          }`}
+        >
+          Teams
+        </button>
+      </div>
+
+      {/* SIDEBAR (desktop only) */}
+      <div className="hidden md:flex w-64 bg-[#1a1a1a] border-r border-[#2a2a2a] p-4 flex-col">
         <h1 className="text-xl font-semibold mb-4">Fitness</h1>
 
         <div className="space-y-2 text-sm mb-6">
@@ -174,15 +196,14 @@ export default function Home() {
         </div>
 
         <div className="flex-1" />
-        <div className="text-xs text-[#666]">v1.0</div>
       </div>
 
       {/* MAIN */}
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-4 md:p-6">
 
         {view === "dashboard" && (
           <>
-            <h2 className="text-2xl font-semibold mb-4">Dashboard</h2>
+            <h2 className="text-xl md:text-2xl font-semibold mb-4">Dashboard</h2>
 
             {/* TEAM SELECT */}
             <div className="bg-[#1f1f1f] rounded-xl p-4 mb-4">
@@ -200,7 +221,7 @@ export default function Home() {
 
             {/* LOG */}
             <div className="bg-[#1f1f1f] rounded-xl p-4 mb-4">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                 <input
                   className="p-3 rounded bg-[#111] border border-[#333]"
                   placeholder="Name"
@@ -216,7 +237,6 @@ export default function Home() {
                 />
 
                 <button
-                  type="button"
                   onClick={handleSubmit}
                   className="bg-[#c46a2d] rounded font-semibold"
                 >
@@ -240,7 +260,7 @@ export default function Home() {
 
         {view === "teams" && (
           <>
-            <h2 className="text-2xl font-semibold mb-4">Teams</h2>
+            <h2 className="text-xl md:text-2xl font-semibold mb-4">Teams</h2>
 
             <div className="bg-[#1f1f1f] rounded-xl p-4 mb-4 flex gap-2">
               <input
@@ -269,9 +289,7 @@ export default function Home() {
                     key={teamName}
                     className="flex justify-between px-4 py-3 border-b border-[#2a2a2a]"
                   >
-                    <span>
-                      {i === 0 && "🏆 "}#{i + 1} {teamName}
-                    </span>
+                    <span>{i + 1}. {teamName}</span>
                     <span className="text-[#c46a2d] font-bold">
                       {total} min
                     </span>
@@ -282,26 +300,21 @@ export default function Home() {
         )}
       </div>
 
-      {/* RIGHT PANEL */}
-      <div className="w-72 bg-[#1a1a1a] border-l border-[#2a2a2a] p-4">
+      {/* ACTIVITY (responsive) */}
+      <div className="w-full md:w-72 bg-[#1a1a1a] border-t md:border-t-0 md:border-l border-[#2a2a2a] p-4">
         <h3 className="text-sm font-semibold mb-4">Recent Activity</h3>
 
-        {activity.map((a, i) => {
-          const value = a.minutes ?? 0
-          return (
-            <div key={i} className="mb-3 text-sm">
-              <div className="font-medium">{a.name}</div>
-
-              <div className="text-[#888] text-xs">
-                {a.team} • {timeAgo(a.createdAt)}
-              </div>
-
-              <div className="text-[#c46a2d] font-semibold">
-                {value} min
-              </div>
+        {activity.map((a, i) => (
+          <div key={i} className="mb-3 text-sm">
+            <div className="font-medium">{a.name}</div>
+            <div className="text-[#888] text-xs">
+              {a.team} • {timeAgo(a.createdAt)}
             </div>
-          )
-        })}
+            <div className="text-[#c46a2d] font-semibold">
+              {a.minutes ?? 0} min
+            </div>
+          </div>
+        ))}
       </div>
 
     </div>
